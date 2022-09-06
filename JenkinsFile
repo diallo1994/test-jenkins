@@ -1,10 +1,40 @@
-pipeline {
-    agent { docker { image 'python:3.10.1-alpine' } }
-    stages {
-        stage('build') {
-            steps {
-                sh 'python --version'
+#!/usr/bin/groovy
+
+def appName = 'alhail-portal'
+def timestamp = System.nanoTime()
+def podLabel = 'jenkins-' + appName + '-' + timestamp
+
+podTemplate(label: podLabel, containers: [
+    containerTemplate(name: 'jnlp', image: 'jenkins/jnlp-slave:4.7-1-alpine', alwaysPullImage: false, args: '${computer.jnlpmac} ${computer.name}', workingDir: "/var/jenkins_home", resourceRequestCpu: '200m', resourceLimitCpu: '300m', resourceRequestMemory: '256Mi', resourceLimitMemory: '512Mi')
+    ],
+    volumes:[
+         hostPathVolume(mountPath: '/var/run/docker.sock', hostPath: '/var/run/docker.sock'),
+         hostPathVolume(mountPath: '/usr/bin/docker', hostPath: '/usr/bin/docker'),
+        ]
+        ) {
+    node (podLabel) {
+            try {
+                def pwd = pwd()
+                stage ('Clean') {
+                    deleteDir()
+                }
+                def exitCode = 0
+                stage('Checkout') {
+                    ansiColor('xterm') {
+                        println "Checkout the git repo"
+                        checkout scm
+                    }
+                }
+                println "Loading Pipeline config"
+                if (exitCode != 0) {
+                    throw new Exception("""Deployment script exits with ${exitCode}""")
+                } else {
+                    currentBuild.result = "SUCCESS"
+                }
+            } catch(error) {
+                currentBuild.result = "FAILURE"
+            } finally {
+                println "Loading Pipeline config"
             }
-        }
     }
 }
